@@ -1,0 +1,1010 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clinical Case Viewer (CCV) Prototype</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            font-family: "Inter", sans-serif;
+            background-color: #e0e0e0; /* Lighter background for the overall page */
+            color: #333;
+            line-height: 1.6;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start; /* Align to top for better scrolling if content is long */
+            min-height: 100vh;
+            padding: 2rem;
+            box-sizing: border-box;
+        }
+
+        /* Phone Wrapper Styles */
+        .phone-wrapper {
+            width: 375px; /* Standard phone width */
+            height: 812px; /* Standard phone height */
+            background-color: #fff;
+            border-radius: 2.5rem; /* More rounded corners for phone */
+            box-shadow: 0 0 0 8px #333, 0 0 0 10px #666, 0 20px 50px rgba(0, 0, 0, 0.5);
+            overflow: hidden; /* Hide scrollbars if content overflows */
+            display: flex;
+            flex-direction: column;
+            position: relative; /* Needed for absolute positioning of modal */
+            margin: auto; /* Center the phone wrapper */
+        }
+
+        .phone-notch {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 150px;
+            height: 25px;
+            background-color: #333;
+            border-bottom-left-radius: 1rem;
+            border-bottom-right-radius: 1rem;
+            z-index: 10;
+        }
+
+        .phone-speaker {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 40px;
+            height: 6px;
+            background-color: #444;
+            border-radius: 3px;
+        }
+
+        .phone-camera {
+            position: absolute;
+            top: 50%;
+            right: 15px;
+            transform: translateY(-50%);
+            width: 10px;
+            height: 10px;
+            background-color: #444;
+            border-radius: 50%;
+        }
+
+        .phone-content {
+            flex-grow: 1;
+            overflow-y: auto; /* Enable scrolling for content inside the phone */
+            padding: 1rem; /* Padding inside the phone frame */
+            padding-top: 3.5rem; /* Space for the notch/status bar */
+            box-sizing: border-box;
+            position: relative; /* For modal containment */
+        }
+
+        /* Tab Styles */
+        .tabs {
+            display: flex;
+            width: 100%;
+            background-color: #f8f8f8;
+            border-bottom: 1px solid #ddd;
+            position: sticky; /* Make tabs sticky at the top of the phone content */
+            top: 0;
+            z-index: 5;
+        }
+        .tab-button {
+            flex: 1;
+            padding: 0.75rem 0.5rem;
+            text-align: center;
+            cursor: pointer;
+            font-weight: 600;
+            color: #777;
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s ease-in-out;
+        }
+        .tab-button.active {
+            color: #007bff;
+            border-color: #007bff;
+        }
+        .tab-content {
+            display: none;
+            padding-top: 1rem; /* Space below tabs */
+        }
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Existing Card Styles */
+        .card {
+            background-color: #fff;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            border: 1px solid #e0e0e0;
+            position: relative; /* For positioning State info */
+        }
+        .card-header {
+            font-size: 1.25rem;
+            font-weight: bold;
+            margin-bottom: 1rem;
+            color: #2c3e50;
+        }
+
+        /* Styles for Toggle Buttons (reverted from tiles) */
+        .toggle-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 0.75rem;
+            padding: 0.5rem 0;
+            border-bottom: 1px dashed #eee;
+        }
+        .toggle-container:last-child {
+            border-bottom: none;
+        }
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 38px; /* Adjusted width */
+            height: 22px; /* Adjusted height */
+        }
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 22px; /* Adjusted border-radius */
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px; /* Adjusted height */
+            width: 16px; /* Adjusted width */
+            left: 3px; /* Adjusted left */
+            bottom: 3px; /* Adjusted bottom */
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: #28a745;
+        }
+        input:focus + .slider {
+            box-shadow: 0 0 1px #28a745;
+        }
+        input:checked + .slider:before {
+            transform: translateX(16px); /* Adjusted transform */
+        }
+
+        /* Read-Only Panel Styles */
+        .read-only-panel {
+            background-color: #f0f8ff;
+            border: 1px solid #a7d9f7;
+            border-radius: 0.5rem;
+            padding: 1rem; /* Reduced padding */
+            margin-top: 1.5rem;
+        }
+        .read-only-panel h3 {
+            font-size: 1.125rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem; /* Reduced margin */
+            color: #206a8e;
+        }
+        .read-only-panel ul {
+            list-style: none;
+            padding-left: 0;
+        }
+        .read-only-panel ul li {
+            margin-bottom: 0.25rem; /* Reduced margin */
+            color: #444;
+        }
+        /* Removed .collapsible-header and .collapsible-content styles as they are no longer used for the main sections */
+
+        /* Basic CCV Header for phone view */
+        .ccv-phone-header {
+            background-color: #2c3e50;
+            color: #fff;
+            padding: 1rem;
+            text-align: center;
+            font-size: 1.125rem;
+            font-weight: bold;
+            border-top-left-radius: 2rem; /* Match phone wrapper */
+            border-top-right-radius: 2rem; /* Match phone wrapper */
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+        .ccv-phone-header .case-id {
+            font-size: 0.875rem;
+            opacity: 0.8;
+            margin-top: 0.25rem;
+        }
+
+        /* End User View Specific Styles */
+        .end-user-info-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem 0;
+            border-bottom: 1px dashed #eee;
+            font-size: 0.95rem; /* Slightly larger font */
+        }
+        .end-user-info-item:last-child {
+            border-bottom: none;
+        }
+        .end-user-info-item strong {
+            color: #2c3e50;
+            font-weight: 600; /* Bolder */
+        }
+
+        /* Surgeon Preference specific styling */
+        .surgeon-preference-block {
+            border: 1px solid #e0e0e0;
+            border-radius: 0.375rem;
+            padding: 0.5rem; /* Reduced padding */
+            margin-bottom: 0.75rem;
+            background-color: #f9f9f9;
+        }
+        .surgeon-preference-block h4 {
+            font-weight: 600;
+            margin-bottom: 0.25rem; /* Reduced margin */
+            color: #34495e;
+            font-size: 1rem; /* Adjusted font size */
+        }
+        .surgeon-preference-block ul {
+            list-style: disc;
+            margin-left: 1.25rem;
+            font-size: 0.9rem;
+            line-height: 1.4; /* Improve readability */
+        }
+
+        /* Styles to mimic screenshot UI */
+        .case-info-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr); /* Two columns */
+            gap: 0.5rem; /* Space between grid items */
+            margin-bottom: 1rem;
+        }
+
+        .case-info-item-grid {
+            background-color: #eaf6f7; /* Light blue-green background */
+            border-radius: 0.375rem; /* rounded-md */
+            padding: 0.75rem;
+            text-align: center;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #34495e;
+        }
+        .case-info-item-grid strong {
+            display: block;
+            font-size: 1rem;
+            color: #2c3e50;
+            margin-bottom: 0.25rem;
+        }
+
+        .end-user-section-header {
+            background-color: #eaf6f7;
+            padding: 0.75rem;
+            border-radius: 0.375rem;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 1rem;
+            text-align: center;
+            font-size: 1rem; /* Adjusted font size */
+        }
+
+        .end-user-list-item {
+            padding: 0.6rem 0; /* Increased padding */
+            border-bottom: 1px dashed #eee;
+            font-size: 0.95rem; /* Consistent font size */
+        }
+        .end-user-list-item:last-child {
+            border-bottom: none;
+        }
+
+        .end-user-contact-item {
+            display: flex;
+            align-items: center;
+            padding: 0.6rem 0; /* Increased padding */
+            font-size: 0.95rem; /* Consistent font size */
+        }
+        .end-user-contact-item svg {
+            margin-right: 0.5rem;
+            color: #007bff;
+            min-width: 20px; /* Ensure icon size */
+            min-height: 20px; /* Ensure icon size */
+        }
+
+        /* Modal Styles */
+        .modal-overlay {
+            position: absolute; /* Changed from fixed to absolute */
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+            visibility: hidden; /* Hidden by default */
+            opacity: 0;
+            transition: visibility 0s, opacity 0.3s ease-in-out;
+        }
+        .modal-overlay.open {
+            visibility: visible;
+            opacity: 1;
+        }
+        .modal-content {
+            background-color: #fff;
+            padding: 0; /* Removed padding here to allow full width children */
+            border-radius: 0.75rem;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+            width: 90%;
+            max-width: 350px; /* Max width for modal within phone */
+            max-height: 90%; /* Max height within phone */
+            overflow-y: auto;
+            position: relative;
+            transform: translateY(20px);
+            transition: transform 0.3s ease-in-out;
+        }
+        .modal-overlay.open .modal-content {
+            transform: translateY(0);
+        }
+        .modal-close-button {
+            position: absolute;
+            top: 0.75rem;
+            right: 0.75rem;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #666;
+            line-height: 1;
+            z-index: 10; /* Ensure it's above content */
+        }
+        .modal-close-button:hover {
+            color: #333;
+        }
+
+        /* Specimen En Route Summary (new position and styling) */
+        .specimen-enroute-summary-tile {
+            background-color: #eaf6f7; /* Light blue-green background */
+            border-radius: 0.375rem; /* rounded-md */
+            padding: 0.75rem;
+            text-align: center;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #34495e;
+            cursor: pointer; /* Make the tile clickable */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%; /* Ensure it fills the grid cell */
+        }
+        .specimen-enroute-summary-tile strong {
+            display: block;
+            font-size: 1rem;
+            color: #2c3e50;
+            margin-bottom: 0.25rem;
+        }
+        .specimen-enroute-summary-tile .counts {
+            display: flex;
+            gap: 0.75rem;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        .specimen-enroute-summary-tile .fa-truck-medical { /* Targeting Font Awesome icon */
+            color: #dc2626; /* Red for ambulance */
+            font-size: 2.5rem; /* Larger icon */
+            margin-bottom: 0.5rem;
+        }
+
+        /* State Info in top right corner */
+        .state-info-corner {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            background-color: #eaf6f7;
+            padding: 0.25rem 0.75rem;
+            border-radius: 0.375rem;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #34495e;
+            z-index: 2; /* Ensure it's above other elements if needed */
+        }
+
+        /* Styles for modal section headers and content (including accordions) */
+        .modal-section-header {
+            font-size: 1.125rem;
+            font-weight: bold;
+            margin-top: 1rem;
+            margin-bottom: 0.5rem;
+            color: #206a8e;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 0.5rem;
+            padding-left: 1.5rem; /* Added horizontal padding */
+            padding-right: 1.5rem; /* Added horizontal padding */
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .modal-section-header:first-of-type {
+            margin-top: 0;
+        }
+        .modal-section-content {
+            padding-top: 0.5rem;
+            padding-bottom: 1rem;
+            padding-left: 1.5rem; /* Added horizontal padding */
+            padding-right: 1.5rem; /* Added horizontal padding */
+        }
+        .modal-section-content ul {
+            list-style: disc;
+            margin-left: 1.25rem;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+
+        /* Collapsible specific styles for modal sections */
+        .collapsible-section .modal-section-header {
+            cursor: pointer; /* Only headers of collapsible sections are clickable */
+        }
+        .collapsible-section .modal-section-content {
+            display: none; /* Hidden by default for collapsible */
+        }
+        .collapsible-section .modal-section-content.active {
+            display: block; /* Show when active */
+        }
+        .collapsible-section .modal-section-header span:last-child { /* Arrow icon */
+            transition: transform 0.2s ease-in-out;
+        }
+        .collapsible-section .modal-section-content.active + .modal-section-header span:last-child {
+            transform: rotate(180deg); /* Rotate arrow when open */
+        }
+
+        /* Styling for accordion sections */
+        .accordion-section-styled {
+            background-color: #f8f8f8; /* Light grey background */
+            border: 1px solid #e0e0e0; /* Subtle border */
+            border-radius: 0.5rem;
+            margin-bottom: 1rem; /* Space between sections */
+            /* Removed internal padding here to allow children to control padding */
+        }
+        .accordion-section-styled .modal-section-header {
+            margin-top: 0;
+            margin-bottom: 0.5rem;
+            padding-bottom: 0.5rem; /* Re-added padding bottom for header within styled section */
+            border-bottom: 1px solid #eee; /* Re-added border for header within styled section */
+        }
+        .accordion-section-styled .modal-section-content {
+            padding-top: 0.5rem;
+            padding-bottom: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="phone-wrapper">
+        <div class="phone-notch">
+            <div class="phone-speaker"></div>
+            <div class="phone-camera"></div>
+        </div>
+
+        <div class="ccv-phone-header">
+            Clinical Case Viewer
+            <div class="case-id">Case ID: 25-14831 | UNOS ID: AMEQ098</div>
+        </div>
+
+        <div class="tabs">
+            <div class="tab-button active" data-tab="admin-view">Admin View</div>
+            <div class="tab-button" data-tab="end-user-view">End User View</div>
+        </div>
+
+        <div class="phone-content">
+            <div id="admin-view" class="tab-content active">
+      
+                <div class="card">
+                    <div class="card-header">Case ID: 25-14831</div>
+                    <div class="state-info-corner">State: AZ</div>
+
+                    <div class="case-info-grid">
+                        <div class="case-info-item-grid">
+                            <strong>UNOS ID:</strong> AMEQ098
+                        </div>
+                        <div id="admin-specimen-enroute-summary-tile" class="specimen-enroute-summary-tile">
+                             <i class="fa-solid fa-truck-medical"></i>
+                            <div class="counts">
+                                <span id="admin-org-count">Org: 0</span>
+                                <span id="admin-bld-count">Bld: 0</span>
+                            </div>
+                        </div>
+                        <div class="case-info-item-grid">
+                            <strong>Don. Type:</strong> DCD
+                        </div>
+                        <div class="case-info-item-grid">
+                            <strong>BD Testing:</strong> No
+                        </div>
+                    </div>
+
+                    <div class="end-user-section-header">Hospital Information</div>
+                    <div class="end-user-info-item">
+                        <strong>Hospital:</strong> <span id="end-user-hospital-name">Banner Desert Medical Center</span>
+                    </div>
+                    <div class="end-user-info-item">
+                        <strong>Unit:</strong> <span>3E Trauma ICU / 3S 04</span>
+                    </div>
+
+                    <div class="end-user-section-header mt-4">Contacts</div>
+                    <div class="end-user-contact-item">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5">
+                            <path fill-rule="evenodd" d="M7.5 6a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0ZM3.751 20.105a8.25 8.25 0 0 1 16.498 0 .75.75 0 0 1-.437.695A18.683 18.683 0 0 1 12 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 0 1-.438-.695Z" clip-rule="evenodd" />
+                        </svg>
+                        <strong>Family Advocate:</strong> <span>Arthur Fullerwinder</span>
+                    </div>
+                    <div class="end-user-contact-item">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5">
+                            <path fill-rule="evenodd" d="M7.5 6a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0ZM3.751 20.105a8.25 8.25 0 0 1 16.498 0 .75.75 0 0 1-.437.695A18.683 18.683 0 0 1 12 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 0 1-.438-.695Z" clip-rule="evenodd" />
+                        </svg>
+                        <strong>Case Lead:</strong> <span>Jared Sweeney</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="end-user-view" class="tab-content">
+                <div class="card">
+                    <div class="card-header">Case ID: 25-14831</div>
+                    <div class="state-info-corner">State: AZ</div>
+
+                    <div class="case-info-grid">
+                        <div class="case-info-item-grid">
+                            <strong>UNOS ID:</strong> AMEQ098
+                        </div>
+                        <div id="user-specimen-enroute-summary-tile" class="specimen-enroute-summary-tile">
+                             <i class="fa-solid fa-truck-medical"></i>
+                            <div class="counts">
+                                <span id="user-org-count">Org: 0</span>
+                                <span id="user-bld-count">Bld: 0</span>
+                            </div>
+                        </div>
+                        <div class="case-info-item-grid">
+                            <strong>Don. Type:</strong> DCD
+                        </div>
+                        <div class="case-info-item-grid">
+                            <strong>BD Testing:</strong> No
+                        </div>
+                    </div>
+
+                    <div class="end-user-section-header">Hospital Information</div>
+                    <div class="end-user-info-item">
+                        <strong>Hospital:</strong> <span id="end-user-hospital-name-user-view">Banner Desert Medical Center</span>
+                    </div>
+                    <div class="end-user-info-item">
+                        <strong>Unit:</strong> <span>3E Trauma ICU / 3S 04</span>
+                    </div>
+
+                    <div class="end-user-section-header mt-4">Contacts</div>
+                    <div class="end-user-contact-item">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5">
+                            <path fill-rule="evenodd" d="M7.5 6a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0ZM3.751 20.105a8.25 8.25 0 0 1 16.498 0 .75.75 0 0 1-.437.695A18.683 18.683 0 0 1 12 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 0 1-.438-.695Z" clip-rule="evenodd" />
+                        </svg>
+                        <strong>Family Advocate:</strong> <span>Arthur Fullerwinder</span>
+                    </div>
+                    <div class="end-user-contact-item">
+                        <svg xmlns="http://www.3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5">
+                            <path fill-rule="evenodd" d="M7.5 6a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0ZM3.751 20.105a8.25 8.25 0 0 1 16.498 0 .75.75 0 0 1-.437.695A18.683 18.683 0 0 1 12 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 0 1-.438-.695Z" clip-rule="evenodd" />
+                        </svg>
+                        <strong>Case Lead:</strong> <span>Jared Sweeney</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="procurement-details-modal" class="modal-overlay">
+            <div class="modal-content">
+                <button id="close-modal-button" class="modal-close-button">&times;</button>
+                <h2 class="text-xl font-bold my-4 text-blue-700 px-6">Organ Procurement Details</h2>
+
+                <div class="modal-section-header">Blood Tissue Specimens</div>
+                <div class="modal-section-content" id="modal-blood-tissue-specimens-content">
+                    </div>
+
+                <div class="modal-section-header">Organ Specimens</div>
+                <div class="modal-section-content" id="modal-organ-specimens-content">
+                    </div>
+
+                <div class="collapsible-section accordion-section-styled">
+                    <div class="modal-section-header" onclick="toggleCollapsible(this)">
+                        <span id="supply-list-header">Prescribed Supply List</span>
+                        <span>&#9660;</span> </div>
+                    <div class="modal-section-content" id="modal-supply-list-content">
+                        </div>
+                </div>
+
+                <div class="collapsible-section mt-4 accordion-section-styled">
+                    <div class="modal-section-header" onclick="toggleCollapsible(this)">
+                        <span id="surgeon-preferences-header">Surgeon Preferences</span>
+                        <span>&#9660;</span> </div>
+                    <div class="modal-section-content" id="modal-surgeon-preferences-content">
+                        </div>
+                </div>
+
+                <div class="collapsible-section mt-4 accordion-section-styled">
+                    <div class="modal-section-header" onclick="toggleCollapsible(this)">
+                        <span id="or-preferences-header">OR Preferences by Hospital</span>
+                        <span>&#9660;</span> </div>
+                    <div class="modal-section-content" id="modal-or-preferences-content">
+                        </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Data for specimen types
+        const bloodTissueSpecimens = [
+            "HLA Archive", "HLA Lab", "OME", "Ossium", "Private Pathology", "Retention blood"
+        ];
+
+        const organSpecimens = [
+            "Heart", "Lung", "Liver", "Kidney (Left)", "Kidney (Right)", "Pancreas", "Intestine"
+        ];
+
+        // Store selected specimens globally (or in a more sophisticated state management)
+        let selectedBloodTissue = new Set();
+        let selectedOrgans = new Set();
+
+        // Detailed placeholder content for organs
+        const organDetails = {
+            "Heart": {
+                supplyList: [
+                    "Cardiac surgical pack", "Cardioplegia solution (4L)", "Aortic cannula", "Venous cannula", "Perfusion tubing set"
+                ],
+                surgeonPreferences: [
+                    { name: "Dr. Emily Chen (Heart Surgeon)", details: ["Suture Preference: Prolene 5-0 and 6-0", "Preferred Scalpel Blade: #11", "Retractor Preference: Sternal Retractor", "Notes: Requires immediate EKG monitoring setup."] }
+                ],
+                orPreferences: [
+                    { hospital: "Banner Desert Medical Center", details: ["Preferred OR Room: OR-1: Equipped for cardiac bypass.", "Requires perfusionist on standby."] }
+                ]
+            },
+            "Lung": {
+                supplyList: [
+                    "Thoracic surgical pack", "Bronchial clamps", "Stapling devices (various sizes)", "Chest tubes (2x)", "Pleural drainage system"
+                ],
+                surgeonPreferences: [
+                    { name: "Dr. Michael Lee (Lung Surgeon)", details: ["Suture Preference: PDS 3-0", "Preferred Scalpel Blade: #10", "Retractor Preference: Finochietto Retractor", "Notes: Prefers fiber optic bronchoscope available."] }
+                ],
+                orPreferences: [
+                    { hospital: "HonorHealth Scottsdale Shea", details: ["Preferred OR Room: OR-5: Negative pressure room.", "Anesthesia setup for single-lung ventilation."] }
+                ]
+            },
+            "Liver": {
+                supplyList: [
+                    "Sterile back table pack", "Cold ischemia solution (UW Solution – 2L)", "Disposable scalpel set",
+                    "10 sterile specimen containers with labels", "Sterile drapes (2x large, 2x medium)", "Disposable suction tubing",
+                    "Organ transport cooler (pre-chilled)", "Ice packs (4 minimum)", "Surgical instrument kit (liver-specific)", "Biohazard disposal bags (2x)"
+                ],
+                surgeonPreferences: [
+                    { name: "Dr. Amanda Li (Liver Surgeon)", details: ["Suture Preference: Prolene 4-0 and Silk 3-0", "Preferred Scalpel Blade: #15", "Retractor Preference: Bookwalter with long arms", "Suction Preference: Yankauer with backup tubing", "Notes: Prefers suction setup to be double-checked pre-incision. Uses extra hemostats."] }
+                ],
+                orPreferences: [
+                    { hospital: "Banner Desert Medical Center", details: ["Preferred OR Room: OR-3 (only OR equipped with overhead warming lights).", "Table Preference: Adjustable height with extension arms.", "Surgical Tech Note: Requires pre-check on suction unit pressure.", "Preferred Cold Storage Location: Adjacent surgical pantry, second shelf labeled 'Organ Transport'.", "Security Protocol: Requires badge scan and code entry for specimen release."] }
+                ]
+            },
+            "Kidney (Left)": {
+                supplyList: [
+                    "Renal surgical pack", "Preservation solution (Viaspan – 1L)", "Kidney transport cooler",
+                    "Vascular clamps (various sizes)", "Ureteral stents"
+                ],
+                surgeonPreferences: [
+                    { name: "Dr. James Patel (Kidney Surgeon)", details: ["Suture Preference: Vicryl 3-0 and Chromic 2-0", "Preferred Scalpel Blade: #10", "Retractor Preference: Gelpi Retractor", "Suction Preference: Frazier Tip #10", "Notes: Requests OR silence during critical vessel clamping."] }
+                ],
+                orPreferences: [
+                    { hospital: "HonorHealth Scottsdale Shea", details: ["Preferred OR Room: OR-2 (closest to sterile supply).", "Lighting Settings: Use max brightness with supplemental headlamps.", "Transport Protocol: Contact Specimen Courier directly via ext. 3241.", "Note: All coolers must be logged at the OR front desk before exit."] }
+                ]
+            },
+            "Kidney (Right)": {
+                supplyList: [
+                    "Renal surgical pack", "Preservation solution (Viaspan – 1L)", "Kidney transport cooler",
+                    "Vascular clamps (various sizes)", "Ureteral stents"
+                ],
+                surgeonPreferences: [
+                    { name: "Dr. James Patel (Kidney Surgeon)", details: ["Suture Preference: Vicryl 3-0 and Chromic 2-0", "Preferred Scalpel Blade: #10", "Retractor Preference: Gelpi Retractor", "Suction Preference: Frazier Tip #10", "Notes: Requests OR silence during critical vessel clamping."] }
+                ],
+                orPreferences: [
+                    { hospital: "HonorHealth Scottsdale Shea", details: ["Preferred OR Room: OR-2 (closest to sterile supply).", "Lighting Settings: Use max brightness with supplemental headlamps.", "Transport Protocol: Contact Specimen Courier directly via ext. 3241.", "Note: All coolers must be logged at the OR front desk before exit."] }
+                ]
+            },
+            "Pancreas": {
+                supplyList: [
+                    "Pancreatic surgical pack", "Preservation solution (Custodiol – 2L)", "Pancreas transport cooler",
+                    "Biliary catheters", "Surgical mesh"
+                ],
+                surgeonPreferences: [
+                    { name: "Dr. Sarah Kim (Pancreas Surgeon)", details: ["Suture Preference: Prolene 4-0", "Preferred Scalpel Blade: #15", "Retractor Preference: Balfour Retractor", "Notes: Requires careful handling of pancreatic tissue."] }
+                ],
+                orPreferences: [
+                    { hospital: "Banner Desert Medical Center", details: ["Preferred OR Room: OR-4: Specialized for abdominal procedures.", "Requires specific pancreatic enzyme inhibitors."] }
+                ]
+            },
+            "Intestine": {
+                supplyList: [
+                    "Intestinal surgical pack", "Preservation solution (HTK – 2L)", "Intestine transport cooler",
+                    "Bowel clamps", "Anastomosis staplers"
+                ],
+                surgeonPreferences: [
+                    { name: "Dr. David Miller (Intestinal Surgeon)", details: ["Suture Preference: Vicryl 3-0", "Preferred Scalpel Blade: #10", "Retractor Preference: Self-retaining Retractor", "Notes: Prefers warm saline irrigation."] }
+                ],
+                orPreferences: [
+                    { hospital: "HonorHealth Scottsdale Shea", details: ["Preferred OR Room: OR-3: General surgery room.", "Ensure bowel prep supplies are readily available."] }
+                ]
+            }
+        };
+
+        // Get modal elements
+        const procurementDetailsModal = document.getElementById('procurement-details-modal');
+        const closeModalButton = document.getElementById('close-modal-button');
+        const modalSupplyListContent = document.getElementById('modal-supply-list-content');
+        const modalSurgeonPreferencesContent = document.getElementById('modal-surgeon-preferences-content');
+        const modalOrPreferencesContent = document.getElementById('modal-or-preferences-content');
+        const modalBloodTissueSpecimensContent = document.getElementById('modal-blood-tissue-specimens-content');
+        const modalOrganSpecimensContent = document.getElementById('modal-organ-specimens-content');
+
+        // Headers for counts
+        const supplyListHeader = document.getElementById('supply-list-header');
+        const surgeonPreferencesHeader = document.getElementById('surgeon-preferences-header');
+        const orPreferencesHeader = document.getElementById('or-preferences-header');
+
+
+        // Function to create a toggle item (button/slider)
+        function createToggleItem(specimenName, cardType, isChecked) {
+            const div = document.createElement('div');
+            div.className = 'toggle-container';
+            div.innerHTML = `
+                <span>${specimenName}</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" data-specimen="${specimenName}" data-card="${cardType}" ${isChecked ? 'checked' : ''}>
+                    <span class="slider"></span>
+                </label>
+            `;
+            return div;
+        }
+
+        // Function to update the content of the Procurement Details Modal
+        function updateProcurementDetailsModalContent(isAdminView) {
+            // Clear previous content
+            modalBloodTissueSpecimensContent.innerHTML = '';
+            modalOrganSpecimensContent.innerHTML = '';
+
+            // Populate Blood Tissue Specimen Card in modal
+            bloodTissueSpecimens.forEach(specimen => {
+                if (isAdminView) {
+                    const isChecked = selectedBloodTissue.has(specimen);
+                    const item = createToggleItem(specimen, 'blood-tissue', isChecked);
+                    modalBloodTissueSpecimensContent.appendChild(item);
+                    // Add event listener for the new checkbox
+                    item.querySelector('input[type="checkbox"]').addEventListener('change', (event) => {
+                        if (event.target.checked) {
+                            selectedBloodTissue.add(specimen);
+                        } else {
+                            selectedBloodTissue.delete(specimen);
+                        }
+                        updateAllViews(); // Update counts in main view
+                    });
+                } else {
+                    // Read-only view for end user: only display selected items
+                    if (selectedBloodTissue.has(specimen)) {
+                        const listItem = document.createElement('li');
+                        listItem.textContent = specimen;
+                        modalBloodTissueSpecimensContent.appendChild(listItem);
+                    }
+                }
+            });
+            // Add "No specimens en route" message if no blood/tissue selected for end user view
+            if (!isAdminView && modalBloodTissueSpecimensContent.children.length === 0) {
+                const listItem = document.createElement('li');
+                listItem.textContent = 'No tissue specimens en route.';
+                modalBloodTissueSpecimensContent.appendChild(listItem);
+            }
+
+
+            // Populate Organ Specimen Card in modal
+            organSpecimens.forEach(organ => {
+                if (isAdminView) {
+                    const isChecked = selectedOrgans.has(organ);
+                    const item = createToggleItem(organ, 'organ', isChecked);
+                    modalOrganSpecimensContent.appendChild(item);
+                    // Add event listener for the new checkbox
+                    item.querySelector('input[type="checkbox"]').addEventListener('change', (event) => {
+                        if (event.target.checked) {
+                            selectedOrgans.add(organ);
+                        } else {
+                            selectedOrgans.delete(organ);
+                        }
+                        updateAllViews(); // Update counts and procurement details
+                    });
+                } else {
+                    // Read-only view for end user: only display selected items
+                    if (selectedOrgans.has(organ)) {
+                        const listItem = document.createElement('li');
+                        listItem.textContent = organ;
+                        modalOrganSpecimensContent.appendChild(listItem);
+                    }
+                }
+            });
+            // Add "No specimens en route" message if no organs selected for end user view
+            if (!isAdminView && modalOrganSpecimensContent.children.length === 0) {
+                const listItem = document.createElement('li');
+                listItem.textContent = 'No organ specimens en route.';
+                modalOrganSpecimensContent.appendChild(listItem);
+            }
+
+
+            // Get the current hospital from the End User View (static for this prototype)
+            let currentHospitalName = '';
+            const hospitalNameSpan = document.getElementById('end-user-hospital-name'); // Using the admin view's hospital name as the source
+            if (hospitalNameSpan) {
+                currentHospitalName = hospitalNameSpan.textContent.trim();
+            }
+
+            let combinedSupplyList = new Set();
+            let combinedSurgeonPreferences = new Map();
+            let combinedOrPreferences = new Set();
+
+            selectedOrgans.forEach(organ => {
+                if (organDetails[organ]) {
+                    organDetails[organ].supplyList.forEach(item => combinedSupplyList.add(item));
+                    organDetails[organ].surgeonPreferences.forEach(pref => combinedSurgeonPreferences.set(pref.name, pref.details));
+                    organDetails[organ].orPreferences.forEach(orPref => {
+                        if (currentHospitalName === '' || orPref.hospital.includes(currentHospitalName)) {
+                            orPref.details.forEach(detail => combinedOrPreferences.add(orPref.hospital + ": " + detail));
+                        }
+                    });
+                }
+            });
+
+            // Populate Supply List
+            modalSupplyListContent.innerHTML = '<h3 class="text-base font-semibold mb-2">Supply List:</h3><ul class="list-disc ml-5">' +
+                (Array.from(combinedSupplyList).length > 0 ? Array.from(combinedSupplyList).map(item => `<li>${item}</li>`).join('') : '<li>No specific supplies listed for selected organs.</li>') +
+                '</ul>';
+            supplyListHeader.textContent = `Prescribed Supply List (${combinedSupplyList.size})`;
+
+
+            // Populate Surgeon Preferences
+            let surgeonPrefsHtml = '<h3 class="text-base font-semibold mb-2">Surgeon Preferences:</h3>';
+            if (combinedSurgeonPreferences.size > 0) {
+                combinedSurgeonPreferences.forEach((details, name) => {
+                    surgeonPrefsHtml += `
+                        <div class="surgeon-preference-block">
+                            <h4>${name}:</h4>
+                            <ul>
+                                ${details.map(item => `<li>${item}</li>`).join('')}
+                            </ul>
+                        </div>
+                    `;
+                });
+            } else {
+                surgeonPrefsHtml += '<ul><li>No specific surgeon preferences listed for selected organs.</li></ul>';
+            }
+            modalSurgeonPreferencesContent.innerHTML = surgeonPrefsHtml;
+            surgeonPreferencesHeader.textContent = `Surgeon Preferences (${combinedSurgeonPreferences.size})`;
+
+
+            // Populate OR Preferences
+            modalOrPreferencesContent.innerHTML = '<h3 class="text-base font-semibold mb-2">OR Preferences:</h3><ul class="list-disc ml-5">' +
+                (Array.from(combinedOrPreferences).length > 0 ? Array.from(combinedOrPreferences).map(item => `<li>${item}</li>`).join('') : '<li>No specific OR preferences listed for selected organs/hospital.</li>') +
+                '</ul>';
+            orPreferencesHeader.textContent = `OR Preferences by Hospital (${combinedOrPreferences.size})`;
+        }
+
+        // Function to update the specimen en route summary in both views
+        function updateSpecimenEnrouteSummary() {
+            const adminOrgCountSpan = document.getElementById('admin-org-count');
+            const adminBldCountSpan = document.getElementById('admin-bld-count');
+            const userOrgCountSpan = document.getElementById('user-org-count');
+            const userBldCountSpan = document.getElementById('user-bld-count');
+
+            adminOrgCountSpan.textContent = `Org: ${selectedOrgans.size}`;
+            adminBldCountSpan.textContent = `Bld: ${selectedBloodTissue.size}`;
+            userOrgCountSpan.textContent = `Org: ${selectedOrgans.size}`;
+            userBldCountSpan.textContent = `Bld: ${selectedBloodTissue.size}`;
+        }
+
+        // Function to open the Procurement Details Modal
+        function openProcurementDetailsModal(isAdminView) {
+            updateProcurementDetailsModalContent(isAdminView);
+            procurementDetailsModal.classList.add('open');
+
+            // All accordions will now be closed by default.
+            // Removed the line that auto-opened "Prescribed Supply List".
+        }
+
+        // Function to close the Procurement Details Modal
+        function closeProcurementDetailsModal() {
+            procurementDetailsModal.classList.remove('open');
+        }
+
+        // Function to update all relevant views based on current selections
+        function updateAllViews() {
+            updateSpecimenEnrouteSummary(); // Update the counts in both main views
+            // If the modal is open, update its content based on the current active tab
+            if (procurementDetailsModal.classList.contains('open')) {
+                const activeTab = document.querySelector('.tab-button.active').dataset.tab;
+                const isAdminView = (activeTab === 'admin-view');
+                updateProcurementDetailsModalContent(isAdminView);
+            }
+        }
+
+        // Function to toggle collapsible sections
+        function toggleCollapsible(header) {
+            const content = header.nextElementSibling;
+            const arrow = header.querySelector('span:last-child');
+            const parentCollapsibleSection = header.closest('.collapsible-section');
+
+            // Close all other open accordions in the modal
+            document.querySelectorAll('#procurement-details-modal .collapsible-section').forEach(section => {
+                const otherContent = section.querySelector('.modal-section-content');
+                const otherArrow = section.querySelector('.modal-section-header span:last-child');
+
+                if (otherContent && otherContent.classList.contains('active') && section !== parentCollapsibleSection) {
+                    otherContent.classList.remove('active');
+                    if (otherArrow) {
+                        otherArrow.innerHTML = '&#9660;'; // Reset to down arrow
+                    }
+                }
+            });
+
+            // Toggle the clicked accordion
+            if (content.classList.contains('active')) {
+                content.classList.remove('active');
+                arrow.innerHTML = '&#9660;'; // Down arrow
+            } else {
+                content.classList.add('active');
+                arrow.innerHTML = '&#9650;'; // Up arrow
+            }
+        }
+
+        // Function to handle tab switching
+        function openTab(tabName) {
+            const tabContents = document.querySelectorAll('.tab-content');
+            tabContents.forEach(content => content.classList.remove('active'));
+
+            const tabButtons = document.querySelectorAll('.tab-button');
+            tabButtons.forEach(button => button.classList.remove('active'));
+
+            document.getElementById(tabName).classList.add('active');
+            document.querySelector(`.tab-button[data-tab="${tabName}"]`).classList.add('active');
+
+            // Ensure views are updated when switching tabs
+            updateAllViews();
+        }
+
+        // Initialize cards and event listeners
+        document.addEventListener('DOMContentLoaded', () => {
+            // Add event listener for the specimen en route summary tile in Admin View
+            document.getElementById('admin-specimen-enroute-summary-tile').addEventListener('click', () => openProcurementDetailsModal(true));
+
+            // Add event listener for the specimen en route summary tile in End User View
+            document.getElementById('user-specimen-enroute-summary-tile').addEventListener('click', () => openProcurementDetailsModal(false));
+
+            // Add event listener for modal close button
+            closeModalButton.addEventListener('click', closeProcurementDetailsModal);
+
+            // Add event listeners for tabs
+            document.querySelectorAll('.tab-button').forEach(button => {
+                button.addEventListener('click', (event) => {
+                    openTab(event.target.dataset.tab);
+                });
+            });
+
+            // Initial setup: Open admin view and update all views
+            openTab('admin-view');
+        });
+    </script>
+</body>
+</html>
